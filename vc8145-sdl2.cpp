@@ -496,8 +496,8 @@ int main ( int argc, char **argv ) {
 		while (SDL_PollEvent(&event)) {
 			switch (event.type)
 			{
-				 case SDL_KEYDOWN:
-					 if (event.key.keysym.sym == SDLK_q) quit = true;
+				case SDL_KEYDOWN:
+					if (event.key.keysym.sym == SDLK_q) quit = true;
 					break;
 				case SDL_QUIT:
 					quit = true;
@@ -647,13 +647,13 @@ int main ( int argc, char **argv ) {
 
 							  case 5: 
 							  case 6:
-								snprintf(prefix, sizeof(prefix),"M");
-								dpp -= 5;
-								break;
+								  snprintf(prefix, sizeof(prefix),"M");
+								  dpp -= 5;
+								  break;
 
 							  default:
-								snprintf(prefix, sizeof(prefix),"k");
-								dpp -= 2;
+								  snprintf(prefix, sizeof(prefix),"k");
+								  dpp -= 2;
 						  }
 						  break;
 
