@@ -524,6 +524,9 @@ int main ( int argc, char **argv ) {
 
 		linetmp[0] = '\0';
 
+                /* Purge the tty buffers.*/
+                tcflush(g.serial_params.fd, TCIOFLUSH);
+
 		/*
 		 * Time to start receiving the serial block data
 		 *
