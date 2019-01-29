@@ -505,7 +505,6 @@ int main ( int argc, char **argv ) {
 		char line2[1024];
 		char *p, *q;
 		double v = 0.0;
-		int end_of_frame_received = 0;
 		uint8_t range;
 		uint8_t dpp = 0;
 		ssize_t bytes_read = 0;
@@ -552,24 +551,17 @@ int main ( int argc, char **argv ) {
 		}
 
 		if (g.debug) { fprintf(stderr,"DATA START: "); }
-		end_of_frame_received = 0;
-		i = 0;
-		do {
-			char temp_char;
+		for (i = 0; i < sizeof(d); ++i) {
 			if (g.debug) fprintf(stderr,".");
-			bytes_read = read(g.serial_params.fd, &temp_char, 1);
-			if (bytes_read) {
-				d[i] = temp_char;
-				if (g.debug) { fprintf(stderr,"%02x ", d[i]); fflush(stdout); }
-
-				i++;
-
-				if (temp_char == 0x0A) {
-					end_of_frame_received = 1;
-					break;
-				}
-			}
-		} while ((bytes_read > 0) && (i < sizeof(d)) && (!end_of_frame_received));
+			while (0 == (bytes_read = read(g.serial_params.fd, d + i, 1)) &&
+                                errno == EINTR);
+                        if (bytes_read < 0) {
+                            perror("cannot read from tty.");
+                            exit(1);
+                        }
+                        if (g.debug) { fprintf(stderr,"%02x ", d[i]); fflush(stderr); }
+                        if (d[i] == 0x0A || 0 == bytes_read) break;
+		}
 
 		if (g.debug) { fprintf(stderr,":END [%d bytes]\r\n", i); fflush(stderr); }
 
