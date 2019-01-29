@@ -335,7 +335,7 @@ int parse_parameters(struct glb *g, int argc, char **argv ) {
 void open_port(struct serial_params_s *s) {
 	int r; 
 
-	s->fd = open( s->device, O_RDWR | O_NOCTTY |O_NDELAY );
+	s->fd = open( s->device, O_RDWR | O_NOCTTY );
 	if (s->fd <0) {
 		perror( s->device );
 	}
@@ -344,11 +344,14 @@ void open_port(struct serial_params_s *s) {
 	tcgetattr(s->fd,&(s->oldtp)); // save current serial port settings 
 	tcgetattr(s->fd,&(s->newtp)); // save current serial port settings in to what will be our new settings
 	cfmakeraw(&(s->newtp));
-	s->newtp.c_cflag = B9600 | CS8 | CLOCAL | CREAD; // Adjust the settings to suit our BSIDE-ADM20 / 2400-8n1
+	s->newtp.c_cflag = CS8 | CLOCAL | CREAD; // Adjust the settings to suit our BSIDE-ADM20 / 2400-8n1
 	s->newtp.c_cflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
 	s->newtp.c_cflag &= ~(PARENB | PARODD); // shut off parity
 	s->newtp.c_cflag &= ~CSTOPB; 
 	s->newtp.c_cflag &= ~CRTSCTS;
+        cfsetspeed(&(s->newtp), B9600);
+        s->newtp.c_cc[VTIME] = 2;
+        s->newtp.c_cc[VMIN] = 0;
 
 	r = tcsetattr(s->fd, TCSANOW, &(s->newtp));
 	if (r) {
@@ -561,7 +564,6 @@ int main ( int argc, char **argv ) {
 		 * Validate the received data
 		 *
 		 */
-		usleep(200000);
 		if (d[0] != 0x89) continue;
 
 		if (i != DATA_FRAME_SIZE) {
