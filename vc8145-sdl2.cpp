@@ -356,6 +356,15 @@ void open_port(struct serial_params_s *s) {
 		exit(1);
 	}
 }
+int cmd_send( struct glb *g, uint8_t cmd ) {
+			size_t bytes_written = 0;
+			unsigned char r;
+			 
+			r = cmd;
+
+			bytes_written = write(g->serial_params.fd, &r, 1);
+			return bytes_written;
+}
 
 uint8_t a2h( uint8_t a ) {
 	a -= 0x30;
@@ -676,6 +685,15 @@ int main ( int argc, char **argv ) {
 						  break;
 
 			case 0xF0: snprintf(mmmode,sizeof(mmmode),"VDC"); 
+				   			if (d[2] & 0b01000000) {
+								// if there is auto range
+								// then push the range button twice
+								// so we get 00.000V ranging
+								//
+								cmd_send(&g, 0xA1);
+								usleep(200000);
+								cmd_send(&g, 0xA1);
+							}
 						  snprintf(units, sizeof(units), "V");
 						  dpp -= 1;
 						  break;
