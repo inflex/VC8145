@@ -365,7 +365,12 @@ int cmd_send( struct glb *g, uint8_t cmd ) {
 			 
 			r = cmd;
 
-			bytes_written = write(g->serial_params.fd, &r, 1);
+			while (0 == (bytes_written = write(g->serial_params.fd, &r, 1)) &&
+                                errno == EINTR);
+                        if (bytes_written <= 0) {
+                            perror("cannot send command.");
+                            exit(1);
+                        }
 			return bytes_written;
 }
 
@@ -535,7 +540,12 @@ int main ( int argc, char **argv ) {
 		{
 			uint8_t r = 0x89;
 			size_t bytes_written = 0;
-			bytes_written = write(g.serial_params.fd, &r, 1);
+			while (0 == (bytes_written = write(g.serial_params.fd, &r, 1)) &&
+                                errno == EINTR);
+                        if (bytes_written <= 0) {
+                            perror("cannot write to tty.");
+                            exit(1);
+                        }
 		}
 
 		if (g.debug) { fprintf(stderr,"DATA START: "); }
