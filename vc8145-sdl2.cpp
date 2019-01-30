@@ -356,15 +356,6 @@ void open_port(struct serial_params_s *s) {
 		exit(1);
 	}
 }
-int cmd_send( struct glb *g, uint8_t cmd ) {
-			size_t bytes_written = 0;
-			unsigned char r;
-			 
-			r = cmd;
-
-			bytes_written = write(g->serial_params.fd, &r, 1);
-			return bytes_written;
-}
 
 uint8_t a2h( uint8_t a ) {
 	a -= 0x30;
@@ -372,6 +363,23 @@ uint8_t a2h( uint8_t a ) {
 	a -= 7;
 	return a;
 }
+
+int cmd_send( struct glb *g, uint8_t cmd ) {
+	size_t bytes_written = 0;
+	bytes_written = write(g->serial_params.fd, &cmd, 1);
+	return bytes_written;
+}
+
+uint8_t byte_read( struct glb *g ) {
+	uint8_t b = 0;
+	size_t bytes_read;
+
+	bytes_read = read(g->serial_params.fd, &b, 1);
+	return b;
+
+}
+
+
 /*-----------------------------------------------------------------\
   Date Code:	: 20180127-220307
   Function Name	: main
@@ -530,9 +538,10 @@ int main ( int argc, char **argv ) {
 		 *
 		 */
 		{
-			uint8_t r = 0x89;
-			size_t bytes_written = 0;
-			bytes_written = write(g.serial_params.fd, &r, 1);
+			cmd_send(&g, 0x89);
+//			uint8_t r = 0x89;
+//			size_t bytes_written = 0;
+//			bytes_written = write(g.serial_params.fd, &r, 1);
 		}
 
 		if (g.debug) { fprintf(stderr,"DATA START: "); }
@@ -685,15 +694,13 @@ int main ( int argc, char **argv ) {
 						  break;
 
 			case 0xF0: snprintf(mmmode,sizeof(mmmode),"VDC"); 
-				   			if (d[2] & 0b01000000) {
-								// if there is auto range
-								// then push the range button twice
-								// so we get 00.000V ranging
-								//
-								cmd_send(&g, 0xA1);
-								usleep(200000);
-								cmd_send(&g, 0xA1);
-							}
+						  if (d[2] & 0b01000000) {
+							  uint8_t b;
+							  cmd_send(&g, 0xA1);
+							  b = byte_read(&g);
+							  cmd_send(&g, 0xA1);
+							  b = byte_read(&g);
+						  }
 						  snprintf(units, sizeof(units), "V");
 						  dpp -= 1;
 						  break;
