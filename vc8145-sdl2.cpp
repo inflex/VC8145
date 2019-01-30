@@ -71,6 +71,7 @@ struct glb {
 	uint8_t quiet;
 	uint8_t show_mode;
 	uint16_t flags;
+	uint8_t range_control;
 	char *com_address;
 	char *output_file;
 
@@ -144,6 +145,7 @@ int init(struct glb *g) {
 	g->debug = 0;
 	g->quiet = 0;
 	g->flags = 0;
+	g->range_control = 0;
 	g->com_address = NULL;
 	g->output_file = NULL;
 
@@ -178,8 +180,9 @@ void show_help(void) {
 			"\t-fc <foreground colour, f0f0ff>\r\n"
 			"\t-bc <background colour, 101010>\r\n"
 			"\r\n"
+			"\t-r: Range control (VDC, VC8145 only)\r\n"
 			"\r\n"
-			"\texample: bside-adm20 -p /dev/ttyUSB0\r\n"
+			"\texample: vc8145-sdl -m -p /dev/ttyUSB0\r\n"
 			, BUILD_VER
 			, BUILD_DATE 
 			);
@@ -307,6 +310,10 @@ int parse_parameters(struct glb *g, int argc, char **argv ) {
 							 g->show_mode = 1;
 							 break;
 
+				case 'r':
+							 g->range_control = 1;
+							 break;
+
 				case 's':
 							 // Not needed, we hard code at 9600-8n1 because
 							 // that's what these meters should be doing.  
@@ -344,7 +351,7 @@ void open_port(struct serial_params_s *s) {
 	tcgetattr(s->fd,&(s->oldtp)); // save current serial port settings 
 	tcgetattr(s->fd,&(s->newtp)); // save current serial port settings in to what will be our new settings
 	cfmakeraw(&(s->newtp));
-	s->newtp.c_cflag = B9600 | CS8 | CLOCAL | CREAD; // Adjust the settings to suit our BSIDE-ADM20 / 2400-8n1
+	s->newtp.c_cflag = B9600 | CS8 | CLOCAL | CREAD; // Adjust the settings to suit our meter
 	s->newtp.c_cflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
 	s->newtp.c_cflag &= ~(PARENB | PARODD); // shut off parity
 	s->newtp.c_cflag &= ~CSTOPB; 
@@ -364,19 +371,23 @@ uint8_t a2h( uint8_t a ) {
 	return a;
 }
 
-int cmd_send( struct glb *g, uint8_t cmd ) {
+size_t cmd_send( struct glb *g, uint8_t cmd ) {
 	size_t bytes_written = 0;
+
 	bytes_written = write(g->serial_params.fd, &cmd, 1);
+
 	return bytes_written;
 }
 
-uint8_t byte_read( struct glb *g ) {
+
+
+size_t byte_read( struct glb *g ) {
 	uint8_t b = 0;
 	size_t bytes_read;
 
 	bytes_read = read(g->serial_params.fd, &b, 1);
-	return b;
 
+	return b;
 }
 
 
@@ -538,10 +549,9 @@ int main ( int argc, char **argv ) {
 		 *
 		 */
 		{
-			cmd_send(&g, 0x89);
-//			uint8_t r = 0x89;
-//			size_t bytes_written = 0;
-//			bytes_written = write(g.serial_params.fd, &r, 1);
+			size_t bytes_written = 0;
+			bytes_written = cmd_send(&g, 0x89);
+			if (bytes_written == 0) continue;
 		}
 
 		if (g.debug) { fprintf(stderr,"DATA START: "); }
@@ -694,12 +704,14 @@ int main ( int argc, char **argv ) {
 						  break;
 
 			case 0xF0: snprintf(mmmode,sizeof(mmmode),"VDC"); 
-						  if (d[2] & 0b01000000) {
-							  uint8_t b;
-							  cmd_send(&g, 0xA1);
-							  b = byte_read(&g);
-							  cmd_send(&g, 0xA1);
-							  b = byte_read(&g);
+						  if (g.range_control) {
+							  if (d[2] & 0b01000000) {
+								  uint8_t b;
+								  cmd_send(&g, 0xA1);
+								  b = byte_read(&g);
+								  cmd_send(&g, 0xA1);
+								  b = byte_read(&g);
+							  }
 						  }
 						  snprintf(units, sizeof(units), "V");
 						  dpp -= 1;
