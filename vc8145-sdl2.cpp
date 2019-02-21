@@ -41,6 +41,8 @@
 
 #define SSIZE 1024
 
+#define INTERFRAME_SLEEP	200000 // 0.2 seconds
+
 #define DATA_FRAME_SIZE 12
 #define ee ""
 #define uu "\u00B5"
@@ -51,6 +53,10 @@
 #define pp "p"
 #define dd "\u00B0"
 #define oo "\u03A9"
+
+#define MMFLAG_AUTORANGE	0b01000000
+
+char SEPARATOR_DP[] = ".";
 
 struct serial_params_s {
 	char *device;
@@ -72,6 +78,7 @@ struct glb {
 	uint8_t show_mode;
 	uint16_t flags;
 	uint8_t range_control;
+	uint8_t units_separator;
 	char *com_address;
 	char *output_file;
 
@@ -81,7 +88,6 @@ struct glb {
 	int window_width, window_height;
 	int wx_forced, wy_forced;
 	SDL_Color font_color, background_color;
-
 };
 
 /*
@@ -94,6 +100,12 @@ struct glb {
  */
 struct glb *glbs;
 
+/*
+ * Test to see if a file exists
+ *
+ * Does not test anything else such as read/write status
+ *
+ */
 bool fileExists(const char *filename) {
 	struct stat buf;
 	return (stat(filename, &buf) == 0);
@@ -119,9 +131,8 @@ char digit( unsigned char dg ) {
 		case 0x3E: g = 'L'; d = 0; break;
 		case 0x3F: g = ' '; d = 0; break;
 		default: g = ' ';
-					//		default: fprintf(stderr,"Unknown 7-segment data '%d / %02x'\r\n", dg, dg);
 	}
-	//	fprintf(stderr,"%d / %c", d, dg);
+
 	return g;
 }
 
@@ -146,6 +157,7 @@ int init(struct glb *g) {
 	g->quiet = 0;
 	g->flags = 0;
 	g->range_control = 0;
+	g->units_separator = 0;
 	g->com_address = NULL;
 	g->output_file = NULL;
 
@@ -173,6 +185,7 @@ void show_help(void) {
 			"\t-p <comport>: Set the com port for the meter, eg: -p /dev/ttyUSB0\r\n"
 			"\t-o <output file> ( used by FlexBV to read the data )\r\n"
 			"\t-m: show mode on screen\r\n"
+			"\t-u: use Units as the separator ( 8.09K becomes 8R09 )\r\n"
 			"\t-d: debug enabled\r\n"
 			"\t-q: quiet output\r\n"
 			"\t-v: show version\r\n"
@@ -314,6 +327,10 @@ int parse_parameters(struct glb *g, int argc, char **argv ) {
 							 g->range_control = 1;
 							 break;
 
+				case 'u':
+							g->units_separator = 1;
+							break;
+
 				case 's':
 							 // Not needed, we hard code at 9600-8n1 because
 							 // that's what these meters should be doing.  
@@ -333,10 +350,8 @@ int parse_parameters(struct glb *g, int argc, char **argv ) {
 
 
 /*
- * Default parameters are 2400:8n1, given that the multimeter
- * is shipped like this and cannot be changed then we shouldn't
- * have to worry about needing to make changes, but we'll probably
- * add that for future changes.
+ *
+ * Open serial port for communitcations
  *
  */
 void open_port(struct serial_params_s *s) {
@@ -348,6 +363,8 @@ void open_port(struct serial_params_s *s) {
 	}
 
 	fcntl(s->fd,F_SETFL,0);
+//	fcntl(s->fd,F_SETFL,FNDELAY);
+
 	tcgetattr(s->fd,&(s->oldtp)); // save current serial port settings 
 	tcgetattr(s->fd,&(s->newtp)); // save current serial port settings in to what will be our new settings
 	cfmakeraw(&(s->newtp));
@@ -364,6 +381,10 @@ void open_port(struct serial_params_s *s) {
 	}
 }
 
+/*
+ * Convert ASCII to hex (uint)
+ *
+ */
 uint8_t a2h( uint8_t a ) {
 	a -= 0x30;
 	if (a < 10) return a;
@@ -371,6 +392,10 @@ uint8_t a2h( uint8_t a ) {
 	return a;
 }
 
+/*
+ * Send single byte command to the meter
+ *
+ */
 size_t cmd_send( struct glb *g, uint8_t cmd ) {
 	size_t bytes_written = 0;
 
@@ -381,6 +406,13 @@ size_t cmd_send( struct glb *g, uint8_t cmd ) {
 
 
 
+/*
+ * Read single byte from serial port.
+ *
+ * Could be generalised to bytes_read() but for
+ * now this serves the purpose it's used for.
+ *
+ */
 size_t byte_read( struct glb *g ) {
 	uint8_t b = 0;
 	size_t bytes_read;
@@ -488,23 +520,6 @@ int main ( int argc, char **argv ) {
 	/* Clear the entire screen to our selected color. */
 	SDL_RenderClear(renderer);
 
-	//SDL_Color color = { 55, 255, 55 };
-
-	/*
-	 * Purge pending buffer coming from the meter.
-	 *
-	 { 
-	 size_t bytes_read;
-	 do {
-	 char temp_char;
-	 bytes_read = read(g.serial_params.fd, &temp_char, 1);
-	 if (temp_char == 0x0A) {
-	 break;
-	 }
-	 } while (bytes_read > 0);
-	 }
-	 */
-
 	/*
 	 *
 	 * Parent will terminate us... else we'll become a zombie
@@ -580,11 +595,19 @@ int main ( int argc, char **argv ) {
 		 * Validate the received data
 		 *
 		 */
-		usleep(200000);
+		usleep(INTERFRAME_SLEEP);
+
+		/*
+		 * We should have received our command back as the first byte
+		 *
+		 */
 		if (d[0] != 0x89) continue;
 
+		/*
+		 * Validate our frame size
+		 *
+		 */
 		if (i != DATA_FRAME_SIZE) {
-			//			if (g.debug) { fprintf(stdout,"Invalid number of bytes, expected %d, received %d, loading previous frame\r\n", DATA_FRAME_SIZE, i); }
 			if (dt_loaded) memcpy(d, dt, sizeof(d));
 		} else {
 			memcpy(dt, d, sizeof(d)); // make a copy.
@@ -705,7 +728,7 @@ int main ( int argc, char **argv ) {
 
 			case 0xF0: snprintf(mmmode,sizeof(mmmode),"VDC"); 
 						  if (g.range_control) {
-							  if (d[2] & 0b01000000) {
+							  if (d[2] & MMFLAG_AUTORANGE) {
 								  uint8_t b;
 								  cmd_send(&g, 0xA1);
 								  b = byte_read(&g);
@@ -727,6 +750,7 @@ int main ( int argc, char **argv ) {
 		{
 			char sign_char = ' ';
 			char value[128];
+			char *separator = SEPARATOR_DP;
 			int dp = 0;
 
 			sign_char='*';
@@ -736,17 +760,18 @@ int main ( int argc, char **argv ) {
 				case 0x50: sign_char = '-'; break;
 			}
 
+			if (g.units_separator) separator = units;
 
 			snprintf(linetmp, sizeof(linetmp), "%c%c%s%c%s%c%s%c%s%c%s%s"
 					,sign_char
 					,digit(d[5])
-					,dpp==0?".":""
+					,dpp==0?separator:""
 					,digit(d[6])
-					,dpp==1?".":""
+					,dpp==1?separator:""
 					,digit(d[7])
-					,dpp==2?".":""
+					,dpp==2?separator:""
 					,digit(d[8])
-					,dpp==3?".":""
+					,dpp==3?separator:""
 					,digit(d[9])
 					,prefix
 					,units
