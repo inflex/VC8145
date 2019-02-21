@@ -750,6 +750,7 @@ int main ( int argc, char **argv ) {
 		{
 			char sign_char = ' ';
 			char value[128];
+			char local_separator[10];
 			char *separator = SEPARATOR_DP;
 			int dp = 0;
 
@@ -760,7 +761,11 @@ int main ( int argc, char **argv ) {
 				case 0x50: sign_char = '-'; break;
 			}
 
-			if (g.units_separator) separator = units;
+			if (g.units_separator) {
+				if (prefix[0]==' ') prefix[0] = '\0';
+				snprintf(local_separator, sizeof(local_separator), "%s%s", prefix, units);
+				separator = local_separator;
+			}
 
 			snprintf(linetmp, sizeof(linetmp), "%c%c%s%c%s%c%s%c%s%c%s%s"
 					,sign_char
@@ -773,9 +778,15 @@ int main ( int argc, char **argv ) {
 					,digit(d[8])
 					,dpp==3?separator:""
 					,digit(d[9])
-					,prefix
-					,units
+					,g.units_separator?"":prefix
+					,g.units_separator?"":units
 					);
+
+			if (g.units_separator) {
+				char *p = linetmp+1; // skip the sign char
+				while (*p == '0') { *p = ' '; p++; }
+				if (!isdigit(*p)) *(p-1) = '0';
+			}
 		}
 
 		/*
