@@ -535,6 +535,7 @@ int main ( int argc, char **argv ) {
 		uint8_t range;
 		uint8_t dpp = 0;
 		ssize_t bytes_read = 0;
+		bool units_override = false;
 
 		while (SDL_PollEvent(&event)) {
 			switch (event.type)
@@ -685,14 +686,24 @@ int main ( int argc, char **argv ) {
 			case 0xD8: snprintf(mmmode,sizeof(mmmode),"Diode"); 
 						  snprintf(units, sizeof(units), "V");
 						  dpp -= 1;
+						  if (g.units_separator) {
+							 units_override = true;
+							snprintf(units, sizeof(units), "v");
+						  }
+
 						  break;
 
 			case 0xE0: snprintf(mmmode,sizeof(mmmode),"Resistance");  
 						  snprintf(units, sizeof(units), "%s", oo);
+								  if (g.units_separator) {
+									  units_override = true;
+									  snprintf(units, sizeof(units), "");
+								  }
 
 						  switch (dpp) {
 							  case 1:
 								  snprintf(prefix, sizeof(prefix)," ");
+								  if (g.units_separator) { snprintf(prefix, sizeof(prefix),"%s",oo); }
 								  dpp+=1;
 								  break;
 
@@ -706,6 +717,7 @@ int main ( int argc, char **argv ) {
 								  snprintf(prefix, sizeof(prefix),"k");
 								  dpp -= 2;
 						  }
+
 						  break;
 
 			case 0xA8: snprintf(mmmode,sizeof(mmmode),"Current"); 
@@ -723,6 +735,10 @@ int main ( int argc, char **argv ) {
 
 			case 0xF8: snprintf(mmmode,sizeof(mmmode),"VAC");
 						  snprintf(units, sizeof(units), "V");
+						  if (g.units_separator) {
+							  units_override = true;
+							  snprintf(units, sizeof(units), "v");
+						  }
 						  dpp -= 1;
 						  break;
 
@@ -738,6 +754,10 @@ int main ( int argc, char **argv ) {
 						  }
 						  snprintf(units, sizeof(units), "V");
 						  dpp -= 1;
+						  if (g.units_separator) {
+							  units_override = true;
+							  snprintf(units, sizeof(units), "v");
+						  }
 						  break;
 
 			default:
