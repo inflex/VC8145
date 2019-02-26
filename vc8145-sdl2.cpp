@@ -748,6 +748,7 @@ int main ( int argc, char **argv ) {
 								  uint8_t b;
 								  cmd_send(&g, 0xA1);
 								  b = byte_read(&g);
+								  usleep(100000);
 								  cmd_send(&g, 0xA1);
 								  b = byte_read(&g);
 							  }
