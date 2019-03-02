@@ -328,8 +328,8 @@ int parse_parameters(struct glb *g, int argc, char **argv ) {
 							 break;
 
 				case 'u':
-							g->units_separator = 1;
-							break;
+							 g->units_separator = 1;
+							 break;
 
 				case 's':
 							 // Not needed, we hard code at 9600-8n1 because
@@ -363,7 +363,7 @@ void open_port(struct serial_params_s *s) {
 	}
 
 	fcntl(s->fd,F_SETFL,0);
-//	fcntl(s->fd,F_SETFL,FNDELAY);
+	//	fcntl(s->fd,F_SETFL,FNDELAY);
 
 	tcgetattr(s->fd,&(s->oldtp)); // save current serial port settings 
 	tcgetattr(s->fd,&(s->newtp)); // save current serial port settings in to what will be our new settings
@@ -669,6 +669,8 @@ int main ( int argc, char **argv ) {
 						  break;
 
 			case 0xC8: snprintf(mmmode,sizeof(mmmode),"Capacitance"); 
+						  if (g.units_separator) { units_override = true; }
+
 						  snprintf(units, sizeof(units), "F"); 
 						  if (dpp < 4)  {
 							  snprintf(prefix, sizeof(prefix), "n");
@@ -684,21 +686,18 @@ int main ( int argc, char **argv ) {
 						  break;
 
 			case 0xD8: snprintf(mmmode,sizeof(mmmode),"Diode"); 
-						  snprintf(units, sizeof(units), "V");
+						  if (g.units_separator) units_override = true;
+						  snprintf(units, sizeof(units), (units_override?"v":"V"));
 						  dpp -= 1;
-						  if (g.units_separator) {
-							 units_override = true;
-							snprintf(units, sizeof(units), "v");
-						  }
 
 						  break;
 
 			case 0xE0: snprintf(mmmode,sizeof(mmmode),"Resistance");  
 						  snprintf(units, sizeof(units), "%s", oo);
-								  if (g.units_separator) {
-									  units_override = true;
-									  snprintf(units, sizeof(units), "");
-								  }
+						  if (g.units_separator) {
+							  units_override = true;
+							  snprintf(units, sizeof(units), "");
+						  }
 
 						  switch (dpp) {
 							  case 1:
@@ -734,11 +733,8 @@ int main ( int argc, char **argv ) {
 						  break;
 
 			case 0xF8: snprintf(mmmode,sizeof(mmmode),"VAC");
-						  snprintf(units, sizeof(units), "V");
-						  if (g.units_separator) {
-							  units_override = true;
-							  snprintf(units, sizeof(units), "v");
-						  }
+						  if (g.units_separator) units_override = true;
+						  snprintf(units, sizeof(units), (units_override?"v":"V"));
 						  dpp -= 1;
 						  break;
 
@@ -753,12 +749,9 @@ int main ( int argc, char **argv ) {
 								  b = byte_read(&g);
 							  }
 						  }
-						  snprintf(units, sizeof(units), "V");
 						  dpp -= 1;
-						  if (g.units_separator) {
-							  units_override = true;
-							  snprintf(units, sizeof(units), "v");
-						  }
+						  if (g.units_separator) units_override = true;
+						  snprintf(units, sizeof(units), (units_override?"v":"V"));
 						  break;
 
 			default:
